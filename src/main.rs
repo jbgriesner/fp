@@ -1,6 +1,7 @@
+use fp::app::run;
 use fp::app::App;
 
 fn main() {
-    let mut app = App::new();
-    app.run();
+    let app = App::new();
+    run(app);
 }

@@ -1,14 +1,19 @@
+use super::app::App;
 use super::consts::BELOW_INPUT;
-use super::search::Engine;
 use std::io::{self, Write};
 use std::sync::mpsc::Receiver;
+use std::sync::{Arc, Mutex};
 
-pub fn handle_display(rx: Receiver<String>, engine: Engine) {
+pub fn handle_display(rx: Receiver<String>, app: Arc<Mutex<App>>) {
     while let Ok(query) = rx.recv() {
         print!("{}", BELOW_INPUT);
         print!("Passwords:\n");
 
-        let results = engine.search(query);
+        let results = {
+            let app = app.lock().unwrap();
+
+            app.engine.search(query)
+        };
 
         let mut line_idx = 4;
         let LINE_LEFT = "\x1B[";
