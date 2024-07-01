@@ -1,5 +1,5 @@
-use super::app::App;
-use super::consts::BELOW_INPUT;
+use crate::app::App;
+use crate::utils::consts::BELOW_INPUT;
 use std::io::{self, Write};
 use std::sync::mpsc::Receiver;
 use std::sync::{Arc, Mutex};

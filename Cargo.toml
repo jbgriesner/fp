@@ -6,10 +6,12 @@ edition = "2021"
 [dependencies]
 termion = "1.5"
 signal-hook = "0.3"
+clap = "4.5.8"
+thiserror = "1.0.61"
 
 [lib]
 path = "src/lib.rs"
 
 [[bin]]
-path = "src/main.rs"
+path = "src/bin/main.rs"
 name = "fp"

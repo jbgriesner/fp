@@ -1,9 +1,8 @@
-use crate::password::PasswordEntry;
-use crate::search::Engine;
+use crate::crypto::password::PasswordEntry;
+use crate::crypto::search::Engine;
 
-use super::app::App;
-use super::app::AppState;
-use super::consts::*;
+use crate::app::{App, AppState};
+use crate::utils::consts::*;
 use std::sync::Mutex;
 use std::{
     io::{self, Write},
