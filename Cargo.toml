@@ -3,6 +3,9 @@ name = "fp"
 version = "0.1.0"
 edition = "2021"
 author = "Jean-Benoit Griesner"
+description = "Fuzzy Pass"
+license = "MIT"
+readme  = "README.md"
 
 [dependencies]
 termion = "1.5"
@@ -10,6 +13,11 @@ signal-hook = "0.3"
 clap = { version = "4.5.8", features = ["derive"] }
 thiserror = "1.0.61"
 inquire = "0.7.5"
+tuikit = "0.5.0"
+env_logger = "0.11.3"
+crossbeam = "0.8.4"
+lazy_static = "1.5.0"
+regex = "1.10.5"
 
 [lib]
 path = "src/lib.rs"
