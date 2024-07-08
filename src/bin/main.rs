@@ -1,12 +1,6 @@
-use fp::app::App;
-use fp::prelude::*;
-use fp::run;
-use inquire::error::InquireResult;
-use inquire::Select;
+use clap::{Parser, Subcommand};
 use std::fmt::Display;
 use std::fmt::Formatter;
-
-use clap::{Parser, Subcommand};
 
 #[derive(Parser)]
 #[command(author, version, about, long_about = None)]
@@ -31,21 +25,22 @@ impl Display for Command {
     }
 }
 
-fn main() -> InquireResult<()> {
-    let args = Args::parse();
-    let cmd: Command;
+fn main() {
+    // let args = Args::parse();
+    // let cmd: Command;
 
-    if args.cmd.is_some() {
-        cmd = args.cmd.unwrap();
-    } else {
-        cmd = Select::new("Command:", Command::VARIANTS.to_vec()).prompt()?;
-    }
+    // if args.cmd.is_some() {
+    //     cmd = args.cmd.unwrap();
+    // } else {
+    //     cmd = Select::new("Command:", Command::VARIANTS.to_vec()).prompt()?;
+    // }
 
-    match cmd {
-        Command::Create => println!("create"),
-        Command::Get => println!("get"),
+    // match cmd {
+    //     Command::Create => println!("create"),
+    //     Command::Get => println!("get"),
+    // }
+    match fp::run() {
+        Ok(_) => println!("all good"),
+        Err(err) => println!("{}", err),
     }
-    Ok(())
-    // let app = App::new();
-    // run(app)
 }
