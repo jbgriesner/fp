@@ -1,38 +1,63 @@
-use termion::terminal_size;
+use crate::item::{Item, MatchedItem};
+use std::cmp;
+use std::io::stdout;
+use std::io::Stdout;
+use std::io::Write;
+use std::sync::RwLockWriteGuard;
+use std::sync::{Arc, RwLock};
+use termion::cursor;
+use termion::raw::IntoRawMode;
+use termion::raw::RawTerminal;
 
-// Model: data structure for display the result
 pub struct Model {
     pub query: String,
-    query_cursor: i32,
+    query_cursor: i32, // > qu<query_cursor>ery
     num_matched: u64,
     num_total: u64,
-    matched_items: Vec<String>,
-    item_start_pos: i64,
-    line_cursor: i32,
+    pub items: Arc<RwLock<Vec<Item>>>, // all items
+    pub matched_items: Vec<MatchedItem>,
+    item_cursor: usize,    // the index of matched item currently highlighted.
+    line_cursor: usize,    // line No.
+    item_start_pos: usize, // for screen scroll.
     max_y: i32,
     max_x: i32,
+    stdout: RwLock<RawTerminal<Stdout>>,
 }
 
 impl Model {
-    pub fn new() -> Self {
-        let mut max_y = 0;
-        let mut max_x = 0;
-
-        let (x, y) = terminal_size().unwrap();
-        max_y = y as i32;
-        max_x = x as i32;
+    pub fn new(stdout: RawTerminal<Stdout>) -> Self {
+        let (max_x, max_y) = termion::terminal_size().expect("failed to get terminal size");
 
         Model {
             query: String::new(),
             query_cursor: 0,
             num_matched: 0,
             num_total: 0,
+            items: Arc::new(RwLock::new(Vec::new())),
             matched_items: Vec::new(),
+            item_cursor: 0,
+            line_cursor: (max_y - 3) as usize,
             item_start_pos: 0,
-            line_cursor: 0,
-            max_y: max_y,
-            max_x: max_x,
+            max_y: max_y as i32,
+            max_x: max_x as i32,
+            stdout: RwLock::new(stdout),
         }
+    }
+
+    pub fn output(&self) {
+        let items = self.items.read().unwrap();
+        for item in items.iter() {
+            if item.selected {
+                println!("{}", item.text);
+            }
+        }
+        //println!("{:?}", items[self.matched_items[self.item_cursor].index].text);
+        //items[self.matched_items[self.item_cursor].index].selected = s;
+    }
+
+    pub fn toggle_select(&self, selected: Option<bool>) {
+        let mut items = self.items.write().unwrap();
+        items[self.matched_items[self.item_cursor].index].toggle_select(selected);
     }
 
     pub fn update_query(&mut self, query: String, cursor: i32) {
@@ -45,64 +70,140 @@ impl Model {
         self.num_total = total;
     }
 
-    pub fn push_item(&mut self, item: String) {
+    pub fn push_item(&mut self, item: MatchedItem) {
         self.matched_items.push(item);
     }
 
+    pub fn clear_items(&mut self) {
+        self.matched_items.clear();
+    }
+
     pub fn move_line_cursor(&mut self, diff: i32) {
-        self.line_cursor += diff;
+        let y = self.line_cursor as i32 + diff;
+        let item_y = cmp::max(0, self.item_cursor as i32 - diff);
+        let screen_height = (self.max_y - 3) as usize;
+
+        match y {
+            y if y < 0 => {
+                self.line_cursor = 0;
+                self.item_cursor = cmp::min(item_y as usize, self.matched_items.len() - 1);
+                self.item_start_pos = self.item_cursor - screen_height;
+            }
+
+            y if y > screen_height as i32 => {
+                self.line_cursor = screen_height;
+                self.item_cursor = cmp::max(0, item_y as usize);
+                self.item_start_pos = self.item_cursor;
+            }
+
+            y => {
+                self.line_cursor = y as usize;
+                self.item_cursor = item_y as usize;
+            }
+        }
     }
 
-    pub fn print_query(&self) {
+    pub fn print_query(&mut self) {
         // > query
-        print!(
-            "{} > {}",
-            termion::cursor::Goto(self.max_y as u16 - 1, 0),
-            self.query
-        );
-        // mv(self.max_y - 1, 0);
-        // clrtoeol();
-        // printw("> ");
-        // addstr(&self.query);
-        // mv(self.max_y - 1, self.query_cursor + 2);
+        let mut stdout = self.stdout.write().unwrap();
+
+        write!(
+            stdout,
+            "{}{}{}",
+            cursor::Goto(0, self.max_y as u16 - 1),
+            "> ",
+            &self.query
+        )
+        .unwrap();
+        cursor::Goto(self.query_cursor as u16 + 2, self.max_y as u16 - 1);
+        stdout.flush().unwrap();
     }
 
-    pub fn print_info(&self) {
-        // mv(self.max_y - 2, 0);
-        // clrtoeol();
-        // printw();
-        print!(
-            "{}{}",
-            termion::cursor::Goto(self.max_y as u16 - 1, 0),
-            format!("  {}/{}", self.num_matched, self.num_total).as_str()
-        );
+    pub fn print_info(&mut self) {
+        let mut stdout = self.stdout.write().unwrap();
+
+        write!(
+            stdout,
+            "{}{}/{}",
+            cursor::Goto(2, self.max_y as u16 - 2),
+            self.num_matched,
+            self.num_total
+        )
+        .unwrap();
+
+        stdout.flush().unwrap();
     }
 
-    pub fn print_items(&self) {
-        let mut y = self.max_y - 2;
-        for item in self.matched_items.iter() {
-            // mv(y, 2);
+    fn print_item(&self, item: &Item, mut stdout: RwLockWriteGuard<RawTerminal<Stdout>>) {
+        let shown_str: String = item.text.chars().take((self.max_x - 1) as usize).collect();
+        cursor::Goto(0, self.line_cursor as u16 - 2);
 
-            let shown_str: String = item.chars().take((self.max_x - 1) as usize).collect();
-            // addstr(&shown_str);
+        if item.selected {
+            write!(stdout, "> {}", &shown_str).unwrap();
+        } else {
+            write!(stdout, "   {}", &shown_str).unwrap();
+        }
+        stdout.flush().unwrap();
+    }
 
-            print!("{}{}", termion::cursor::Goto(y as u16, 2), &shown_str);
+    pub fn print_items(&mut self) {
+        // let mut stdout = self.stdout.lock().unwrap();
+
+        let items = self.items.read().unwrap();
+
+        let mut y = self.max_y - 3;
+        for matched in self.matched_items[self.item_start_pos..].into_iter() {
+            let mut stdout = self.stdout.write().unwrap();
+            cursor::Goto(0, self.max_y as u16);
+            let is_current_line = y == self.line_cursor as i32;
+
+            {
+                if is_current_line {
+                    write!(stdout, ">").unwrap();
+                } else {
+                    write!(stdout, " ").unwrap();
+                }
+
+                self.print_item(&items[matched.index], stdout);
+            }
+
+            let mut stdout = self.stdout.write().unwrap();
+
+            stdout.flush().unwrap();
 
             y -= 1;
-            if y <= 0 {
+            if y < 0 {
                 break;
             }
         }
     }
 
-    pub fn refresh(&self) {
-        // refresh();
-    }
+    // pub fn refresh(&self) {
+    //     refresh();
+    // }
 
-    pub fn display(&self) {
+    pub fn display(&mut self) {
+        // let mut stdout = stdout().into_raw_mode().unwrap();
+        {
+            let mut stdout = self.stdout.write().unwrap();
+
+            let (_, y) = termion::terminal_size().expect("failed to get terminal size");
+
+            for k in 0..10 {
+                write!(
+                    stdout,
+                    "{}{}",
+                    cursor::Goto(0, y - k),
+                    termion::clear::CurrentLine
+                )
+                .unwrap();
+            }
+            stdout.flush().unwrap();
+        }
+
         self.print_items();
         self.print_info();
         self.print_query();
-        self.refresh();
+        // self.refresh();
     }
 }

@@ -1,70 +1,82 @@
-use crate::{event::EventBox, Event};
-use std::sync::{
-    mpsc::{Receiver, Sender},
-    Arc,
-};
+/// Given a list of entries `items` and the query string, filter out the
+/// matched entries using fuzzy search algorithm.
+use std::sync::{Arc, RwLock};
+
+use crate::event::Event;
+use crate::eventbox::EventBox;
+use crate::item::{Item, MatchedItem};
+use std::sync::mpsc::Sender;
 
 pub struct Matcher {
-    rx_source: Receiver<String>,  // channel to retrieve strings from reader
-    tx_output: Sender<String>,    // channel to send output to
-    eb_req: Arc<EventBox<Event>>, // event box that recieve requests
+    tx_output: Sender<MatchedItem>,  // channel to send output to
+    eb_req: Arc<EventBox<Event>>,    // event box that recieve requests
     eb_notify: Arc<EventBox<Event>>, // event box that send out notification
-    items: Vec<String>,
+    items: Arc<RwLock<Vec<Item>>>,
     item_pos: usize,
+    num_matched: u64,
     query: String,
 }
 
 impl Matcher {
     pub fn new(
-        rx_source: Receiver<String>,
-        tx_output: Sender<String>,
+        items: Arc<RwLock<Vec<Item>>>,
+        tx_output: Sender<MatchedItem>,
         eb_req: Arc<EventBox<Event>>,
         eb_notify: Arc<EventBox<Event>>,
     ) -> Self {
         Matcher {
-            rx_source: rx_source,
             tx_output: tx_output,
             eb_req: eb_req,
             eb_notify: eb_notify,
-            items: Vec::new(),
+            items: items,
             item_pos: 0,
+            num_matched: 0,
             query: String::new(),
         }
     }
 
+    fn match_str(&self, item: &str) -> bool {
+        if self.query == "" {
+            return true;
+        }
+
+        item.starts_with(&self.query)
+    }
+
     pub fn process(&mut self) {
-        for string in self.items[self.item_pos..].into_iter() {
+        let items = self.items.read().unwrap();
+        for item in items[self.item_pos..].into_iter() {
             // process the matcher
             //self.tx_output.send(string.clone());
-            (*self.eb_notify).set(Event::EV_MATCHER_UPDATE_PROCESS, Box::new(0));
-            self.tx_output.send(string.clone());
+            if self.match_str(&item.text) {
+                self.num_matched += 1;
+                let _ = self.tx_output.send(MatchedItem::new(self.item_pos));
+            }
 
             self.item_pos += 1;
             if (self.item_pos % 100) == 99 && !self.eb_req.is_empty() {
                 break;
             }
         }
-    }
-
-    fn read_new_item(&mut self) {
-        while let Ok(string) = self.rx_source.try_recv() {
-            self.items.push(string);
-        }
+        (*self.eb_notify).set(
+            Event::EvMatcherUpdateProcess,
+            Box::new((self.num_matched, items.len() as u64)),
+        );
     }
 
     fn reset_query(&mut self, query: &str) {
         self.query.clear();
         self.query.push_str(query);
+        self.num_matched = 0;
+        self.item_pos = 0;
     }
 
     pub fn run(&mut self) {
         loop {
             for (e, val) in (*self.eb_req).wait() {
                 match e {
-                    Event::EV_MATCHER_NEW_ITEM => {
-                        self.read_new_item();
-                    }
-                    Event::EV_MATCHER_RESET_QUERY => {
+                    Event::EvMatcherNewItem => {}
+                    Event::EvMatcherResetQuery => {
                         self.reset_query(&val.downcast::<String>().unwrap());
                     }
                     _ => {}

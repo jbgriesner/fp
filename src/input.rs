@@ -1,8 +1,14 @@
-use std::{io::stdin, sync::Arc};
+use termion::event::Key;
+use termion::input::TermRead;
+use termion::raw::IntoRawMode;
 
-use termion::{event::Key, input::TermRead};
-
-use crate::{event::EventBox, Event};
+use crate::event::Event;
+use crate::eventbox::EventBox;
+use std::char;
+use std::io::{stdin, stdout, Write};
+/// Input will listens to user input, modify the query string, send special
+/// keystrokes(such as Enter, Ctrl-p, Ctrl-n, etc) to the controller.
+use std::sync::Arc;
 
 pub struct Input {
     query: Vec<char>,
@@ -42,41 +48,35 @@ impl Input {
     }
 
     pub fn run(&mut self) {
-        loop {
-            self.handle_char();
-        }
-    }
+        let stdin = stdin();
+        let mut stdout = stdout().into_raw_mode().unwrap();
 
-    // fetch input from curses and turn it into query.
-    fn handle_char(&mut self) {
-        let orig_query = self.query.clone();
-
-        for ch in stdin().keys() {
-            match ch.unwrap() {
-                Key::Char(ch) => {
-                    /* Enable attributes and output message. */
-                    match ch {
-                        '\x7F' => {
-                            // backspace
-                            self.delete_char();
-                            self.eb.set(
-                                Event::EV_QUERY_CHANGE,
-                                Box::new((self.get_query(), self.pos)),
-                            );
-                        }
-                        ch => {
-                            // other characters
-                            self.add_char(ch);
-                            self.eb.set(
-                                Event::EV_QUERY_CHANGE,
-                                Box::new((self.get_query(), self.pos)),
-                            );
-                        }
-                    }
+        'lop: for k in stdin.keys() {
+            match k.as_ref().unwrap() {
+                Key::Char('\n') => self.eb.set(Event::EvInputSelect, Box::new(true)),
+                Key::Backspace => {
+                    self.delete_char();
+                    self.eb
+                        .set(Event::EvQueryChange, Box::new((self.get_query(), self.pos)));
                 }
-
-                _ => {}
+                Key::Char('\t') => self.eb.set(Event::EvInputToggle, Box::new(true)),
+                Key::Ctrl('p') => self.eb.set(Event::EvInputUp, Box::new(true)),
+                Key::Ctrl('n') => self.eb.set(Event::EvInputDown, Box::new(true)),
+                Key::Char(ch) => {
+                    self.add_char(*ch);
+                    self.eb
+                        .set(Event::EvQueryChange, Box::new((self.get_query(), self.pos)));
+                }
+                Key::Esc => {
+                    self.eb
+                        .set(Event::Stop, Box::new((self.get_query(), self.pos)));
+                    break 'lop;
+                }
+                _ => {
+                    println!("{:?}", k)
+                }
             }
+            stdout.flush().unwrap();
         }
     }
 }

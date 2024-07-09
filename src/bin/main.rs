@@ -1,3 +1,7 @@
+#![allow(dead_code)]
+#![allow(unused_variables)]
+#![allow(unused)]
+
 use clap::{Parser, Subcommand};
 use std::fmt::Display;
 use std::fmt::Formatter;
