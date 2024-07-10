@@ -153,14 +153,24 @@ impl Model {
             if is_current_line {
                 write!(
                     stdout,
-                    "{}{}> {}",
+                    "{}{}{}>{} ",
                     cursor::Goto(0, y),
-                    color::Bg(color::LightBlack),
+                    color::Bg(color::Rgb(255, 193, 7)),
+                    color::Fg(color::Red),
+                    color::Fg(color::Reset)
+                )
+                .unwrap();
+                write!(stdout, "{}", shown_str).unwrap();
+            } else {
+                write!(
+                    stdout,
+                    "{}{} {} {}",
+                    cursor::Goto(0, y),
+                    color::Bg(color::Rgb(255, 193, 7)),
+                    color::Bg(color::Reset),
                     shown_str
                 )
                 .unwrap();
-            } else {
-                write!(stdout, "{}  {}", cursor::Goto(0, y), shown_str).unwrap();
             }
 
             write!(stdout, "{}", color::Bg(color::Reset)).unwrap();
@@ -177,6 +187,7 @@ impl Model {
     pub fn display(&mut self) {
         {
             let mut stdout = self.stdout.write().unwrap();
+            write!(stdout, "{}", cursor::Hide,).unwrap();
 
             let (_, y) = termion::terminal_size().expect("failed to get terminal size");
 
@@ -185,7 +196,7 @@ impl Model {
                     stdout,
                     "{}{}",
                     cursor::Goto(0, y - k),
-                    termion::clear::CurrentLine
+                    termion::clear::CurrentLine,
                 )
                 .unwrap();
             }
