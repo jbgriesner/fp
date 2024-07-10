@@ -1,3 +1,7 @@
+#![allow(dead_code)]
+#![allow(unused_variables)]
+#![allow(unused)]
+
 /// Given a list of entries `items` and the query string, filter out the
 /// matched entries using fuzzy search algorithm.
 use std::sync::{Arc, RwLock};

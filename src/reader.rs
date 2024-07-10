@@ -1,11 +1,15 @@
+#![allow(dead_code)]
+#![allow(unused_variables)]
+#![allow(unused)]
+
 use crate::event::Event;
 use crate::eventbox::EventBox;
 use crate::item::Item;
-use std::error::Error;
-use std::io::{stdin, BufRead, BufReader};
-use std::process::{Command, Stdio};
+use crate::prelude::Result;
+use std::fs::DirEntry;
 use std::sync::mpsc::Sender;
 use std::sync::Arc;
+use std::{fs, io};
 
 pub struct Reader {
     eb: Arc<EventBox<Event>>, // eventbox
@@ -17,44 +21,23 @@ impl Reader {
         Reader { eb, tx }
     }
 
-    // invoke find comand.
-    fn get_command_output(&self) -> Result<Box<dyn BufRead>, Box<dyn Error>> {
-        let command = Command::new("sh")
-            .arg("-c")
-            .arg("find ./  -printf \"%f\n\".")
-            .stdout(Stdio::piped())
-            .stderr(Stdio::null())
-            .spawn()
-            .unwrap();
-        let stdout = command
-            .stdout
-            .ok_or("command output: unwrap failed".to_owned())
-            .unwrap();
-        Ok(Box::new(BufReader::new(stdout)))
+    fn ls(&self) -> Result<impl Iterator<Item = io::Result<DirEntry>>> {
+        let pwds = fs::read_dir("/home/jb/.fp/")?;
+        Ok(pwds)
     }
 
     pub fn run(&mut self) {
-        let mut read = self.get_command_output().expect("command not found");
+        let mut pwds = self.ls().expect("command not found");
 
         loop {
-            let mut input = String::new();
-            match read.read_line(&mut input) {
-                Ok(n) => {
-                    if n <= 0 {
-                        break;
+            match pwds.next() {
+                Some(entry) => {
+                    if let Ok(entry) = entry {
+                        let file_name = entry.file_name().into_string().unwrap();
+                        let _ = self.tx.send(Item::new(file_name));
                     }
-
-                    if input.ends_with("\n") {
-                        input.pop();
-                        if input.ends_with("\r") {
-                            input.pop();
-                        }
-                    }
-                    let _ = self.tx.send(Item::new(input));
                 }
-                Err(_err) => {
-                    break;
-                }
+                None => break,
             }
             self.eb.set(Event::EvReaderNewItem, Box::new(0));
         }

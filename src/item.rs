@@ -1,3 +1,7 @@
+#![allow(dead_code)]
+#![allow(unused_variables)]
+#![allow(unused)]
+
 pub struct Item {
     pub text: String,
     pub selected: bool,

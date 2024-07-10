@@ -1,3 +1,7 @@
+#![allow(dead_code)]
+#![allow(unused_variables)]
+#![allow(unused)]
+
 use event::Event;
 use eventbox::EventBox;
 use input::Input;
@@ -21,10 +25,10 @@ mod model;
 mod prelude;
 mod reader;
 
-pub use crate::prelude::Result;
+pub use crate::prelude::{f, Error, Result};
 
 pub fn run() -> Result<()> {
-    let mut stdout = stdout().into_raw_mode().unwrap();
+    let stdout = stdout().into_raw_mode().unwrap();
 
     let mut model = Model::new(stdout);
 

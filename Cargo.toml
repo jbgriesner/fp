@@ -2,11 +2,10 @@
 name = "fp"
 version = "0.1.0"
 edition = "2021"
-author = "Jean-Benoit Griesner"
+authors = ["Jean-Benoit Griesner"]
 
 [dependencies]
 termion = "*"
-clap = { version = "4.5.8", features = ["derive"] }
 thiserror = "1.0.61"
 
 [lib]

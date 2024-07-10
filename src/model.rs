@@ -1,3 +1,7 @@
+#![allow(dead_code)]
+#![allow(unused_variables)]
+#![allow(unused)]
+
 use crate::item::{Item, MatchedItem};
 use std::cmp;
 use std::io::stdout;
@@ -5,6 +9,7 @@ use std::io::Stdout;
 use std::io::Write;
 use std::sync::RwLockWriteGuard;
 use std::sync::{Arc, RwLock};
+use termion::color;
 use termion::cursor;
 use termion::raw::IntoRawMode;
 use termion::raw::RawTerminal;
@@ -104,7 +109,7 @@ impl Model {
     }
 
     pub fn print_query(&mut self) {
-        // > query
+        // >  c-query
         let mut stdout = self.stdout.write().unwrap();
 
         write!(
@@ -134,56 +139,42 @@ impl Model {
         stdout.flush().unwrap();
     }
 
-    fn print_item(&self, item: &Item, mut stdout: RwLockWriteGuard<RawTerminal<Stdout>>) {
-        let shown_str: String = item.text.chars().take((self.max_x - 1) as usize).collect();
-        cursor::Goto(0, self.line_cursor as u16 - 2);
-
-        if item.selected {
-            write!(stdout, "> {}", &shown_str).unwrap();
-        } else {
-            write!(stdout, "   {}", &shown_str).unwrap();
-        }
-        stdout.flush().unwrap();
-    }
-
     pub fn print_items(&mut self) {
-        // let mut stdout = self.stdout.lock().unwrap();
-
         let items = self.items.read().unwrap();
 
-        let mut y = self.max_y - 3;
+        let mut y = self.max_y as u16 - 3;
         for matched in self.matched_items[self.item_start_pos..].into_iter() {
             let mut stdout = self.stdout.write().unwrap();
-            cursor::Goto(0, self.max_y as u16);
-            let is_current_line = y == self.line_cursor as i32;
 
-            {
-                if is_current_line {
-                    write!(stdout, ">").unwrap();
-                } else {
-                    write!(stdout, " ").unwrap();
-                }
+            let is_current_line = y == self.line_cursor as u16;
+            let item = &items[matched.index];
+            let shown_str: String = item.text.chars().take((self.max_x - 1) as usize).collect();
 
-                self.print_item(&items[matched.index], stdout);
+            if is_current_line {
+                write!(
+                    stdout,
+                    "{}{}> {}",
+                    cursor::Goto(0, y),
+                    color::Bg(color::LightBlack),
+                    shown_str
+                )
+                .unwrap();
+            } else {
+                write!(stdout, "{}  {}", cursor::Goto(0, y), shown_str).unwrap();
             }
 
-            let mut stdout = self.stdout.write().unwrap();
+            write!(stdout, "{}", color::Bg(color::Reset)).unwrap();
 
             stdout.flush().unwrap();
 
             y -= 1;
-            if y < 0 {
+            if y == 0 {
                 break;
             }
         }
     }
 
-    // pub fn refresh(&self) {
-    //     refresh();
-    // }
-
     pub fn display(&mut self) {
-        // let mut stdout = stdout().into_raw_mode().unwrap();
         {
             let mut stdout = self.stdout.write().unwrap();
 
@@ -204,6 +195,5 @@ impl Model {
         self.print_items();
         self.print_info();
         self.print_query();
-        // self.refresh();
     }
 }

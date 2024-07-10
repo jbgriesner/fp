@@ -60,8 +60,8 @@ impl Input {
                         .set(Event::EvQueryChange, Box::new((self.get_query(), self.pos)));
                 }
                 Key::Char('\t') => self.eb.set(Event::EvInputToggle, Box::new(true)),
-                Key::Ctrl('p') => self.eb.set(Event::EvInputUp, Box::new(true)),
-                Key::Ctrl('n') => self.eb.set(Event::EvInputDown, Box::new(true)),
+                Key::Up => self.eb.set(Event::EvInputUp, Box::new(true)),
+                Key::Down => self.eb.set(Event::EvInputDown, Box::new(true)),
                 Key::Char(ch) => {
                     self.add_char(*ch);
                     self.eb
