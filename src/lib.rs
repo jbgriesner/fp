@@ -2,32 +2,70 @@
 #![allow(unused_variables)]
 #![allow(unused)]
 
-use event::Event;
+pub use crate::prelude::{f, Error, Result};
+use event::{Event, FuzzyPassEvent, KeyboardEvent, SourceEvent};
 use eventbox::EventBox;
 use input::Input;
+use item::Item;
 use matcher::Matcher;
 use model::Model;
 use reader::Reader;
+use screen::Screen;
 use std::{
-    io::stdout,
-    sync::{mpsc::channel, Arc},
+    io::{stdin, stdout, Stdin, Stdout, Write},
+    path::Display,
+    sync::{
+        mpsc::{channel, Receiver, Sender},
+        Arc,
+    },
     thread,
 };
-use termion::raw::IntoRawMode;
+use termion::{
+    event::Key,
+    input::TermRead,
+    raw::{IntoRawMode, RawTerminal},
+};
 
 mod error;
 mod event;
 mod eventbox;
 mod input;
 mod item;
+mod keyboard;
 mod matcher;
 mod model;
 mod prelude;
 mod reader;
-
-pub use crate::prelude::{f, Error, Result};
+mod screen;
+mod source;
+mod worker;
 
 pub fn run() -> Result<()> {
+    let (sender, receiver) = channel();
+
+    let mut screen = Screen::new();
+    source::run(sender.clone());
+    keyboard::run(sender.clone());
+
+    loop {
+        match receiver.recv().unwrap() {
+            FuzzyPassEvent::KeyboardEvent(keyboard_event) => match keyboard_event {
+                KeyboardEvent::Exit => break,
+                _ => break,
+            },
+            FuzzyPassEvent::SourceEvent(source_event) => match source_event {
+                SourceEvent::ReadFinished(items) => {
+                    screen.set_items(items);
+                }
+            },
+        }
+        screen.show();
+    }
+
+    Ok(())
+}
+
+pub fn run_old() -> Result<()> {
     let stdout = stdout().into_raw_mode().unwrap();
 
     let mut model = Model::new(stdout);
@@ -37,18 +75,18 @@ pub fn run() -> Result<()> {
     let (tx_matched, rx_matched) = channel();
 
     let eb_clone_reader = eb.clone();
-    let mut reader = Reader::new(eb_clone_reader, tx_source);
 
     let eb_matcher = Arc::new(EventBox::new());
     let eb_matcher_clone = eb_matcher.clone();
     let eb_clone_matcher = eb.clone();
     let items = model.items.clone();
-    let mut matcher = Matcher::new(items, tx_matched, eb_matcher_clone, eb_clone_matcher);
 
     let eb_clone_input = eb.clone();
+
+    let mut reader = Reader::new(eb_clone_reader, tx_source);
+    let mut matcher = Matcher::new(items, tx_matched, eb_matcher_clone, eb_clone_matcher);
     let mut input = Input::new(eb_clone_input);
 
-    // start running
     thread::spawn(move || {
         reader.run();
     });

@@ -1,7 +1,3 @@
-#![allow(dead_code)]
-#![allow(unused_variables)]
-#![allow(unused)]
-
 use crate::item::{Item, MatchedItem};
 use std::cmp;
 use std::io::stdout;
@@ -14,44 +10,53 @@ use termion::cursor;
 use termion::raw::IntoRawMode;
 use termion::raw::RawTerminal;
 
-pub struct Model {
+pub struct Screen {
     pub query: String,
     query_cursor: i32, // > qu<query_cursor>ery
     num_matched: u64,
     num_total: u64,
-    pub items: Arc<RwLock<Vec<Item>>>, // all items
+    pub items: Vec<Item>, // all items
     pub matched_items: Vec<MatchedItem>,
     item_cursor: usize,    // the index of matched item currently highlighted.
     line_cursor: usize,    // line No.
     item_start_pos: usize, // for screen scroll.
     max_y: i32,
     max_x: i32,
-    stdout: RwLock<RawTerminal<Stdout>>,
+    stdout: RawTerminal<Stdout>,
 }
 
-impl Model {
-    pub fn new(stdout: RawTerminal<Stdout>) -> Self {
+impl Screen {
+    pub fn new() -> Self {
         let (max_x, max_y) = termion::terminal_size().expect("failed to get terminal size");
 
-        Model {
+        Screen {
             query: String::new(),
             query_cursor: 0,
             num_matched: 0,
             num_total: 0,
-            items: Arc::new(RwLock::new(Vec::new())),
+            items: Vec::new(),
             matched_items: Vec::new(),
             item_cursor: 0,
             line_cursor: (max_y - 3) as usize,
             item_start_pos: 0,
             max_y: max_y as i32,
             max_x: max_x as i32,
-            stdout: RwLock::new(stdout),
+            stdout: stdout().into_raw_mode().unwrap(),
         }
     }
 
-    pub fn output(&self) {
-        let items = self.items.read().unwrap();
-        for item in items.iter() {
+    pub fn set_items(&mut self, items: Vec<Item>) {
+        self.items = items.clone();
+        let mut count = 0;
+
+        for item in items[0..].into_iter() {
+            self.matched_items.push(MatchedItem::new(count));
+            count += 1;
+        }
+    }
+
+    pub fn output(&mut self) {
+        for item in self.items.iter() {
             if item.selected {
                 println!("{}", item.text);
             }
@@ -59,15 +64,13 @@ impl Model {
         //println!("{:?}", items[self.matched_items[self.item_cursor].index].text);
         //items[self.matched_items[self.item_cursor].index].selected = s;
 
-        let mut stdout = self.stdout.write().unwrap();
-        write!(stdout, "{}", cursor::Show,).unwrap();
+        write!(self.stdout, "{}", cursor::Show,).unwrap();
 
-        stdout.flush().unwrap();
+        self.stdout.flush().unwrap();
     }
 
-    pub fn toggle_select(&self, selected: Option<bool>) {
-        let mut items = self.items.write().unwrap();
-        items[self.matched_items[self.item_cursor].index].toggle_select(selected);
+    pub fn toggle_select(&mut self, selected: Option<bool>) {
+        self.items[self.matched_items[self.item_cursor].index].toggle_select(selected);
     }
 
     pub fn update_query(&mut self, query: String, cursor: i32) {
@@ -115,10 +118,9 @@ impl Model {
 
     pub fn print_query(&mut self) {
         // >  c-query
-        let mut stdout = self.stdout.write().unwrap();
 
         write!(
-            stdout,
+            self.stdout,
             "{}{}{}",
             cursor::Goto(0, self.max_y as u16 - 1),
             "> ",
@@ -126,14 +128,12 @@ impl Model {
         )
         .unwrap();
         cursor::Goto(self.query_cursor as u16 + 2, self.max_y as u16 - 1);
-        stdout.flush().unwrap();
+        self.stdout.flush().unwrap();
     }
 
     pub fn print_info(&mut self) {
-        let mut stdout = self.stdout.write().unwrap();
-
         write!(
-            stdout,
+            self.stdout,
             "{}{}/{}",
             cursor::Goto(2, self.max_y as u16 - 2),
             self.num_matched,
@@ -141,23 +141,19 @@ impl Model {
         )
         .unwrap();
 
-        stdout.flush().unwrap();
+        self.stdout.flush().unwrap();
     }
 
     pub fn print_items(&mut self) {
-        let items = self.items.read().unwrap();
-
         let mut y = self.max_y as u16 - 3;
         for matched in self.matched_items[self.item_start_pos..].into_iter() {
-            let mut stdout = self.stdout.write().unwrap();
-
             let is_current_line = y == self.line_cursor as u16;
-            let item = &items[matched.index];
+            let item = &self.items[matched.index];
             let shown_str: String = item.text.chars().take((self.max_x - 1) as usize).collect();
 
             if is_current_line {
                 write!(
-                    stdout,
+                    self.stdout,
                     "{}{}{}>{} ",
                     cursor::Goto(0, y),
                     color::Bg(color::Rgb(255, 193, 7)),
@@ -165,10 +161,10 @@ impl Model {
                     color::Fg(color::Reset)
                 )
                 .unwrap();
-                write!(stdout, "{}", shown_str).unwrap();
+                write!(self.stdout, "{}", shown_str).unwrap();
             } else {
                 write!(
-                    stdout,
+                    self.stdout,
                     "{}{} {} {}",
                     cursor::Goto(0, y),
                     color::Bg(color::Rgb(255, 193, 7)),
@@ -178,9 +174,9 @@ impl Model {
                 .unwrap();
             }
 
-            write!(stdout, "{}", color::Bg(color::Reset)).unwrap();
+            write!(self.stdout, "{}", color::Bg(color::Reset)).unwrap();
 
-            stdout.flush().unwrap();
+            self.stdout.flush().unwrap();
 
             y -= 1;
             if y == 0 {
@@ -189,23 +185,22 @@ impl Model {
         }
     }
 
-    pub fn display(&mut self) {
+    pub fn show(&mut self) {
         {
-            let mut stdout = self.stdout.write().unwrap();
-            write!(stdout, "{}", cursor::Hide,).unwrap();
+            write!(self.stdout, "{}", cursor::Hide,).unwrap();
 
             let (_, y) = termion::terminal_size().expect("failed to get terminal size");
 
             for k in 0..10 {
                 write!(
-                    stdout,
+                    self.stdout,
                     "{}{}",
                     cursor::Goto(0, y - k),
                     termion::clear::CurrentLine,
                 )
                 .unwrap();
             }
-            stdout.flush().unwrap();
+            self.stdout.flush().unwrap();
         }
 
         self.print_items();

@@ -6,10 +6,10 @@ use crate::event::Event;
 use crate::eventbox::EventBox;
 use std::char;
 use std::io::{stdin, stdout, Write};
-/// Input will listens to user input, modify the query string, send special
-/// keystrokes(such as Enter, Ctrl-p, Ctrl-n, etc) to the controller.
 use std::sync::Arc;
 
+/// Input will listens to user input, modify the query string, send special
+/// keystrokes(such as Enter, Ctrl-p, Ctrl-n, etc) to the controller.
 pub struct Input {
     query: Vec<char>,
     index: usize, // index in chars
@@ -23,7 +23,7 @@ impl Input {
             query: Vec::new(),
             index: 0,
             pos: 0,
-            eb: eb,
+            eb,
         }
     }
 
@@ -71,6 +71,9 @@ impl Input {
                     self.eb
                         .set(Event::Stop, Box::new((self.get_query(), self.pos)));
                     break 'lop;
+                }
+                Key::Ctrl('n') => {
+                    self.eb.set(Event::NewPassword, Box::new(0));
                 }
                 _ => {
                     println!("{:?}", k)

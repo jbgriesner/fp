@@ -6,7 +6,7 @@ use std::fs::{DirEntry, ReadDir};
 use std::io::Read;
 use std::sync::mpsc::Sender;
 use std::sync::Arc;
-use std::{fs, io};
+use std::{fs, io, thread};
 
 pub struct Reader {
     eb: Arc<EventBox<Event>>, // eventbox

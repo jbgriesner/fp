@@ -2,6 +2,7 @@
 #![allow(unused_variables)]
 #![allow(unused)]
 
+#[derive(Debug, Clone)]
 pub struct Item {
     pub text: String,
     pub selected: bool,
