@@ -13,29 +13,34 @@ use termion::{event::Key, input::TermRead, screen};
 
 pub fn run(sender: Sender<FuzzyPassEvent>) {
     let stdin = stdin();
-    let mut query: Vec<char>;
+    let mut query: Vec<char> = Vec::new();
 
     thread::spawn(move || {
-        print!("running keyboard");
-        'lop: for k in stdin.keys() {
+        for k in stdin.keys() {
             let event = match k.as_ref().unwrap() {
                 Key::Char('\n') => ItemSelected,
-                Key::Backspace => QueryChanged,
-                // Key::Char('\t') => self.eb.set(Event::EvInputToggle, Box::new(true)),
+                Key::Backspace => {
+                    query.pop();
+                    QueryChanged(query.clone())
+                }
                 Key::Up => Up,
                 Key::Down => Down,
                 Key::Char(ch) => {
-                    // self.add_char(*ch);
-                    QueryChanged
+                    query.push(*ch);
+                    QueryChanged(query.clone())
                 }
-                Key::Esc => {
-                    let event = Exit;
-                    break 'lop;
-                }
+                Key::Esc => Exit,
                 Key::Ctrl('n') => NewPassword,
                 _ => UnknownEvent,
             };
-            sender.send(FuzzyPassEvent::KeyboardEvent(event)).unwrap();
+
+            sender
+                .send(FuzzyPassEvent::KeyboardEvent(event.clone()))
+                .unwrap();
+
+            if event == Exit {
+                break;
+            }
         }
     });
 }

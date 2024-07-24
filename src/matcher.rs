@@ -2,14 +2,21 @@
 #![allow(unused_variables)]
 #![allow(unused)]
 
-/// Given a list of entries `items` and the query string, filter out the
-/// matched entries using fuzzy search algorithm.
-use std::sync::{Arc, RwLock};
-
-use crate::event::Event;
+use crate::event::{Event, FuzzyPassEvent};
 use crate::eventbox::EventBox;
 use crate::item::{Item, MatchedItem};
+use crate::Result;
 use std::sync::mpsc::Sender;
+use std::sync::{Arc, RwLock};
+use std::thread;
+
+pub fn run(sender: Sender<FuzzyPassEvent>) -> Result<()> {
+    thread::spawn(move || {});
+    Ok(())
+}
+
+///___________________________________________________
+///
 
 pub struct Matcher {
     tx_output: Sender<MatchedItem>,  // channel to send output to

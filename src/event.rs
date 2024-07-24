@@ -16,18 +16,21 @@ pub enum Event {
     NewPassword,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum FuzzyPassEvent {
     SourceEvent(SourceEvent),
     KeyboardEvent(KeyboardEvent),
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum SourceEvent {
     ReadFinished(Vec<Item>),
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum KeyboardEvent {
     ItemSelected,
-    QueryChanged,
+    QueryChanged(Vec<char>),
     Up,
     Down,
     Exit,

@@ -42,7 +42,10 @@ trait PathsIteratorExt: Sized {
     fn paths(self) -> Paths<Self>;
 }
 
-impl<ReadDirIterator> PathsIteratorExt for ReadDirIterator {
+impl<ReadDirIterator> PathsIteratorExt for ReadDirIterator
+where
+    ReadDirIterator: Iterator,
+{
     fn paths(self) -> Paths<Self> {
         Paths::new(self)
     }

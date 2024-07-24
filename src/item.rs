@@ -2,7 +2,7 @@
 #![allow(unused_variables)]
 #![allow(unused)]
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Item {
     pub text: String,
     pub selected: bool,
@@ -11,7 +11,7 @@ pub struct Item {
 impl Item {
     pub fn new(text: String) -> Self {
         Item {
-            text: text,
+            text,
             selected: false,
         }
     }
