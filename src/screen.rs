@@ -91,31 +91,6 @@ impl Screen {
         }
     }
 
-    fn move_line_cursor(&mut self, diff: i32) {
-        let y = self.line_cursor as i32 + diff;
-        let item_y = cmp::max(0, self.item_cursor as i32 - diff);
-        let screen_height = (self.max_y - 3) as usize;
-
-        match y {
-            y if y < 0 => {
-                self.line_cursor = 0;
-                // self.item_cursor = cmp::min(item_y as usize, self.matched_items.len() - 1);
-                self.item_start_pos = self.item_cursor - screen_height;
-            }
-
-            y if y > screen_height as i32 => {
-                self.line_cursor = screen_height;
-                self.item_cursor = cmp::max(0, item_y as usize);
-                self.item_start_pos = self.item_cursor;
-            }
-
-            y => {
-                self.line_cursor = y as usize;
-                self.item_cursor = item_y as usize;
-            }
-        }
-    }
-
     fn print_query(&mut self) {
         write!(
             self.stdout,
