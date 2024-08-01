@@ -1,4 +1,4 @@
-use crate::item::Item;
+use crate::{item::Item, pass::Password};
 
 #[derive(Debug, Clone, Copy, Hash, PartialEq, Eq)]
 pub enum Event {
@@ -36,4 +36,5 @@ pub enum KeyboardEvent {
     Exit,
     NewPassword,
     UnknownEvent,
+    RestartKeyboard(Password),
 }

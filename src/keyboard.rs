@@ -38,7 +38,7 @@ pub fn run(sender: Sender<FuzzyPassEvent>) {
                 .send(FuzzyPassEvent::KeyboardEvent(event.clone()))
                 .unwrap();
 
-            if event == Exit {
+            if event == Exit || event == NewPassword {
                 break;
             }
         }
