@@ -217,7 +217,7 @@ fn match_str(query: &str, item: &str) -> bool {
     item.starts_with(&query)
 }
 
-pub fn show_new_pass(on_main_screen: Arc<AtomicBool>, sender: mpsc::Sender<FuzzyPassEvent>) {
+pub fn show_new_pass(sender: mpsc::Sender<FuzzyPassEvent>) {
     let mut stdout = std::io::stdout().into_raw_mode().unwrap();
     let mut screen = stdout.into_alternate_screen().unwrap();
 
@@ -262,5 +262,4 @@ pub fn show_new_pass(on_main_screen: Arc<AtomicBool>, sender: mpsc::Sender<Fuzzy
             }
         }
     }
-    on_main_screen.store(true, Ordering::SeqCst);
 }
