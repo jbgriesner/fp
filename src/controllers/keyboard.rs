@@ -1,24 +1,32 @@
+use super::Runner;
+use crate::event::FuzzyPassEvent;
 use crate::event::KeyboardEvent::*;
-use crate::event::{FuzzyPassEvent, KeyboardEvent};
 use std::{
-    io::{stdin, stdout, Stdin, Stdout, Write},
-    path::Display,
-    sync::{
-        mpsc::{channel, Sender},
-        Arc,
-    },
-    thread,
+    convert::Infallible,
+    io::stdin,
+    sync::mpsc::{Receiver, Sender, TryRecvError},
 };
-use termion::{event::Key, input::TermRead, screen};
+use termion::{event::Key, input::TermRead};
 
-pub fn run(sender: Sender<FuzzyPassEvent>) {
-    let stdin = stdin();
-    let mut query: Vec<char> = Vec::new();
+pub struct Keyboard {}
 
-    thread::spawn(move || {
+impl Runner for Keyboard {
+    fn run(sender: Sender<FuzzyPassEvent>, token: &Receiver<Infallible>) {
+        let stdin = stdin();
+        let mut query: Vec<char> = Vec::new();
+
         for k in stdin.keys() {
+            match token.try_recv() {
+                Ok(never) => match never {},
+                Err(TryRecvError::Empty) => {}
+                Err(TryRecvError::Disconnected) => break,
+            }
+
             let event = match k.as_ref().unwrap() {
-                Key::Char('\n') => ItemSelected,
+                Key::Char('\n') => {
+                    query = vec![];
+                    ItemSelected
+                }
                 Key::Backspace => {
                     query.pop();
                     QueryChanged(query.clone())
@@ -38,9 +46,9 @@ pub fn run(sender: Sender<FuzzyPassEvent>) {
                 .send(FuzzyPassEvent::KeyboardEvent(event.clone()))
                 .unwrap();
 
-            if event == Exit || event == NewPassword {
+            if event == Exit {
                 break;
             }
         }
-    });
+    }
 }

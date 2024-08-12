@@ -3,8 +3,11 @@
 #![allow(unused)]
 
 pub use crate::prelude::{f, Error, Result};
+use crate::screen::ScreenMode::*;
 use event::FuzzyPassEvent::{KeyboardEvent, SourceEvent};
-use event::KeyboardEvent::{Down, Exit, NewPassword, QueryChanged, RestartKeyboard, Up};
+use event::KeyboardEvent::{
+    Down, Exit, ItemSelected, NewPassword, QueryChanged, RestartKeyboard, Up,
+};
 use event::SourceEvent::ReadFinished;
 use event::{Event, FuzzyPassEvent};
 use eventbox::EventBox;
@@ -31,17 +34,16 @@ use termion::{
     raw::{IntoRawMode, RawTerminal},
 };
 
+pub mod controllers;
 mod error;
 mod event;
 mod eventbox;
 mod input;
 mod item;
-mod keyboard;
 mod matcher;
 mod model;
 mod pass;
 mod prelude;
-mod runners;
 mod screen;
 mod source;
 mod worker;
@@ -52,28 +54,48 @@ pub fn run() -> Result<()> {
     let mut app = MainScreen::new();
 
     source::run(sender.clone());
-    // keyboard::run(sender.clone());
 
-    let mut keyboard = runners::Keyboard::spawn(sender.clone());
+    let mut keyboard = controllers::get_keyboard(sender.clone());
     keyboard.start();
-
-    let mut main_screen = true;
 
     loop {
         match receiver.recv().unwrap() {
-            KeyboardEvent(keyboard_event) if main_screen => match keyboard_event {
+            KeyboardEvent(keyboard_event) if app.get_mode() == Main => match keyboard_event {
                 Exit => break,
                 QueryChanged(q) => app.set_query(q.iter().cloned().collect::<String>()),
                 Down => app.move_line_cursor_down(),
                 Up => app.move_line_cursor_up(),
                 NewPassword => {
+                    app.set_mode(NewPass);
+                    // keyboard.pause();
+                    // let sender_clone = sender.clone();
+                    // thread::spawn(move || {
+                    //     show_new_pass(sender_clone);
+                    // });
+                    // app.show_new_pass();
+                    // continue;
+                }
+                RestartKeyboard(pwd) => {
+                    println!("{}{:?}", termion::cursor::Goto(20, 20), pwd);
+                    // keyboard::run(sender.clone())
+                    keyboard.start();
+                }
+                _ => break,
+            },
+            KeyboardEvent(keyboard_event) if app.get_mode() == NewPass => match keyboard_event {
+                Exit => app.set_mode(Main),
+                QueryChanged(q) => app.update_new_pass(q.iter().cloned().collect::<String>()),
+                Down => app.move_line_cursor_down(),
+                Up => app.move_line_cursor_up(),
+                NewPassword => {
+                    keyboard.pause();
                     let sender_clone = sender.clone();
                     thread::spawn(move || {
                         show_new_pass(sender_clone);
                     });
-                    keyboard.pause();
                     continue;
                 }
+                ItemSelected => app.next(),
                 RestartKeyboard(pwd) => {
                     println!("{}{:?}", termion::cursor::Goto(20, 20), pwd);
                     // keyboard::run(sender.clone())
@@ -89,9 +111,6 @@ pub fn run() -> Result<()> {
             },
         }
         app.show();
-        // } else {
-        //     thread::sleep(Duration::from_millis(100));
-        // }
     }
     Ok(())
 }

@@ -1,11 +1,11 @@
 use crate::event::{FuzzyPassEvent, KeyboardEvent};
 use crate::item::{Item, MatchedItem};
 use crate::pass::Password;
-use std::io::{stdin, stdout, Stdout, Write};
+use std::io::{stdin, stdout, BufReader, Stdout, Write};
 use std::ops::{Deref, DerefMut};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{mpsc, Arc, RwLock, RwLockWriteGuard};
-use std::time::Duration;
+use std::time::{self, Duration};
 use std::{cmp, thread};
 use termion::event::Key;
 use termion::input::TermRead;
@@ -13,10 +13,17 @@ use termion::raw::{IntoRawMode, RawTerminal};
 use termion::screen::{AlternateScreen, IntoAlternateScreen};
 use termion::{color, cursor, style};
 
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct NewPass {
     url: String,
     password: String,
     tags: String,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ScreenMode {
+    Main,
+    NewPass,
 }
 
 pub struct MainScreen {
@@ -32,6 +39,9 @@ pub struct MainScreen {
     max_x: i32,
     stdout: RawTerminal<Stdout>,
     max_items_displayed: u64,
+    mode: ScreenMode,
+    pwd: NewPass,
+    current_string: String,
 }
 
 impl MainScreen {
@@ -51,7 +61,18 @@ impl MainScreen {
             max_x: max_x as i32,
             stdout: stdout().into_raw_mode().unwrap(),
             max_items_displayed: 14,
+            mode: ScreenMode::Main,
+            current_string: String::new(),
+            pwd: NewPass::default(),
         }
+    }
+
+    pub fn get_mode(&self) -> ScreenMode {
+        self.mode
+    }
+
+    pub fn set_mode(&mut self, mode: ScreenMode) {
+        self.mode = mode
     }
 
     pub fn set_query(&mut self, query: String) {
@@ -60,6 +81,38 @@ impl MainScreen {
 
         self.item_cursor = 0;
         self.line_cursor = (self.max_y - 3) as usize;
+    }
+
+    pub fn update_new_pass(&mut self, new: String) {
+        self.current_string = new;
+    }
+
+    pub fn next(&mut self) {
+        match (
+            self.pwd.password.as_str(),
+            self.pwd.url.as_str(),
+            self.pwd.tags.as_str(),
+        ) {
+            ("", _, _) => self.pwd.password = self.current_string.clone(),
+            (_, "", _) => self.pwd.url = self.current_string.clone(),
+            (_, _, "") => self.pwd.tags = self.current_string.clone(),
+            (_, _, _) => return,
+        }
+        self.current_string = String::new();
+    }
+
+    pub fn next2(&mut self) {
+        let ptr = match (
+            self.pwd.password.as_str(),
+            self.pwd.url.as_str(),
+            self.pwd.tags.as_str(),
+        ) {
+            ("", _, _) => &mut self.pwd.password,
+            (_, "", _) => &mut self.pwd.url,
+            (_, _, "") => &mut self.pwd.tags,
+            (_, _, _) => return,
+        };
+        *ptr = std::mem::take(&mut self.current_string);
     }
 
     pub fn set_items(&mut self, items: Vec<Item>) {
@@ -187,7 +240,7 @@ impl MainScreen {
         temp_items
     }
 
-    pub fn show(&mut self) {
+    fn show_main(&mut self) {
         self.matched_items = self.update_matched_items();
 
         write!(self.stdout, "{}", cursor::Hide,).unwrap();
@@ -207,6 +260,132 @@ impl MainScreen {
         self.print_info();
         self.print_query();
     }
+
+    fn show_new_pass(&mut self) {
+        let mut stdout = std::io::stdout().into_raw_mode().unwrap();
+        let mut screen = stdout.into_alternate_screen().unwrap();
+
+        let current__pwd = self.pwd.password.clone();
+        let current__url = self.pwd.url.clone();
+        let current__tags = self.pwd.tags.clone();
+
+        let mut curr_y = 5;
+        let mut curr_x = 6;
+
+        write!(
+            screen,
+            "{}{}{}{}{}{}{}{}",
+            termion::cursor::Goto(3, 4),
+            color::Fg(color::Red),
+            color::Bg(color::Rgb(255, 193, 7)),
+            style::Bold,
+            "New Password",
+            color::Fg(color::Reset),
+            color::Bg(color::Reset),
+            style::Reset
+        )
+        .unwrap();
+
+        write!(
+            screen,
+            "{} Password > ",
+            termion::cursor::Goto(curr_x, curr_y),
+        )
+        .unwrap();
+
+        curr_x += 12;
+
+        if current__pwd.is_empty() {
+            write!(
+                screen,
+                "{}{}",
+                termion::cursor::Goto(curr_x, curr_y),
+                self.current_string
+            )
+            .unwrap();
+        } else {
+            write!(
+                screen,
+                "{}{}",
+                termion::cursor::Goto(curr_x, curr_y),
+                current__pwd
+            )
+            .unwrap();
+
+            curr_x = 6;
+            curr_y = 7;
+
+            write!(screen, "{} URL > ", termion::cursor::Goto(curr_x, curr_y),).unwrap();
+
+            curr_x += 7;
+
+            if current__url.is_empty() {
+                write!(
+                    screen,
+                    "{}{}",
+                    termion::cursor::Goto(curr_x, curr_y),
+                    self.current_string
+                )
+                .unwrap();
+            } else {
+                write!(
+                    screen,
+                    "{}{}",
+                    termion::cursor::Goto(curr_x, curr_y),
+                    current__url
+                )
+                .unwrap();
+
+                curr_x = 6;
+                curr_y = 9;
+
+                write!(screen, "{} Tags > ", termion::cursor::Goto(curr_x, curr_y),).unwrap();
+
+                curr_x += 8;
+
+                if current__tags.is_empty() {
+                    write!(
+                        screen,
+                        "{}{}",
+                        termion::cursor::Goto(curr_x, curr_y),
+                        self.current_string
+                    )
+                    .unwrap();
+                } else {
+                    write!(
+                        screen,
+                        "{}{}",
+                        termion::cursor::Goto(curr_x, curr_y),
+                        current__tags
+                    )
+                    .unwrap();
+
+                    write!(
+                        screen,
+                        "{}{}{}{}{}{}{}{}",
+                        termion::cursor::Goto(10, 15),
+                        color::Fg(color::Red),
+                        color::Bg(color::Rgb(255, 193, 7)),
+                        style::Bold,
+                        "To generate this new entry, press <Enter>. Otherwise press <Esc>",
+                        color::Fg(color::Reset),
+                        color::Bg(color::Reset),
+                        style::Reset
+                    )
+                    .unwrap();
+                }
+            }
+        }
+
+        screen.flush().unwrap();
+    }
+
+    pub fn show(&mut self) {
+        match self.mode {
+            ScreenMode::Main => self.show_main(),
+            ScreenMode::NewPass => self.show_new_pass(),
+        }
+    }
 }
 
 fn match_str(query: &str, item: &str) -> bool {
@@ -215,6 +394,38 @@ fn match_str(query: &str, item: &str) -> bool {
     }
 
     item.starts_with(&query)
+}
+
+fn get_input<W: Write>(screen: &mut AlternateScreen<W>) -> String {
+    let mut rez = String::new();
+
+    let stdin = std::io::stdin();
+    let reader = BufReader::new(stdin);
+
+    let mut cursor: u16 = 18;
+
+    for key in reader.keys() {
+        match key.as_ref().unwrap() {
+            Key::Char('\n') | Key::Esc => {
+                break;
+            }
+            Key::Char(ch) => {
+                rez.push(*ch);
+                write!(
+                    screen,
+                    "{}{}{}",
+                    termion::cursor::Goto(cursor, 5),
+                    *ch,
+                    termion::cursor::BlinkingBlock
+                )
+                .unwrap();
+                screen.flush().unwrap();
+                cursor += 1;
+            }
+            _ => continue,
+        }
+    }
+    rez
 }
 
 pub fn show_new_pass(sender: mpsc::Sender<FuzzyPassEvent>) {
@@ -242,24 +453,22 @@ pub fn show_new_pass(sender: mpsc::Sender<FuzzyPassEvent>) {
         termion::cursor::BlinkingBlock
     )
     .unwrap();
+
     screen.flush().unwrap();
 
-    let stdin = std::io::stdin();
-    for evt in stdin.keys() {
-        if let Ok(key) = evt {
-            write!(screen, "{}{:?}", termion::cursor::Goto(10, 10), key).unwrap();
-            screen.flush().unwrap();
-            match key {
-                Key::Char('q') => {
-                    sender
-                        .send(FuzzyPassEvent::KeyboardEvent(
-                            KeyboardEvent::RestartKeyboard(Password::new()),
-                        ))
-                        .unwrap();
-                    break;
-                }
-                _ => continue,
-            }
-        }
-    }
+    let pwd = get_input(&mut screen);
+
+    write!(
+        screen,
+        "{} Password received > {}",
+        termion::cursor::Goto(20, 5),
+        "pwd"
+    )
+    .unwrap();
+
+    sender
+        .send(FuzzyPassEvent::KeyboardEvent(
+            KeyboardEvent::RestartKeyboard(Password::new()),
+        ))
+        .unwrap()
 }
